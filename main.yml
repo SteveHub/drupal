@@ -1,0 +1,115 @@
+- name: Create a EC2 instance
+  hosts: localhost
+  gather_facts: False
+  vars:
+    keypair: fda-ansible
+    instance_type: t2.micro
+    security_group: sg-3ae5b242
+    image: ami-fce3c696
+    region: us-east-1
+    subnet: subnet-7378d92a
+  tasks:
+    - name: Provision Web Server Host for Drupal
+      ec2:
+         key_name: "{{ keypair }}"
+         group_id: "{{ security_group }}"
+         region: "{{ region }}"
+         instance_type: t2.micro
+         image: "{{ image }}"
+         wait: true
+         instance_tags:
+            Name: Drupal
+            Env: ansible
+      register: ec2
+
+    - name: Add Web Server instance IP to webserver Group
+      add_host: hostname={{ item.public_ip }} groups=test_instance
+      with_items: ec2.instances
+ 
+    - name: "Wait for SSH to come up"
+      wait_for: "host={{ item.public_ip }} port=22 delay=15 timeout=120 state=started"
+      with_items: ec2.instances
+
+- name: Update instances
+  hosts: test_instance
+  gather_facts: True
+  user: ubuntu
+  sudo: yes
+  vars:
+    db_name: drupal
+    db_user: drupal_user
+    db_password: password1
+  tasks:
+    - name: apt-get update the server
+      apt: update_cache=yes
+  
+    - name: Install Apache
+      apt: name=apache2 state=latest
+
+    - name: Install PHP, and associated packages
+      apt: name=php5 state=latest
+
+    - name: Install PHP GD library
+      apt: name=php5-gd state=latest
+
+    - name: Enable Apache rewrite module
+      command: a2enmod rewrite
+  
+    - name: Restarting Apache
+      service: name=apache2 state=restarted
+
+    - name: Install MySQL server
+      apt: name=mysql-server state=latest
+
+    - name: Install Apache module for MySQL authentication
+      apt: name=libapache2-mod-auth-mysql state=latest
+
+    - name: Install MySQL module for PHP
+      apt: name=php5-mysql state=latest
+
+    - name: Install Python MySQLdb
+      apt: name=python-mysqldb state=latest
+    
+    - name: Restart Apache
+      service: name=apache2 state=restarted
+
+    - name: Create the Drupal database
+      mysql_db: db={{ db_name }} state=present
+
+    - name: Create Drupal Database User
+      mysql_user: name={{ db_user }} password={{ db_password }} priv={{ db_name }}.*:ALL
+        
+    - name: Installing Git
+      apt: name=git state=latest
+
+    - name: Installing Drush
+      apt: name=drush state=latest
+      
+    - name: Install Drupal 8
+      command: drush dl drupal-8
+  
+    - name: Move files to drupal directory
+      command: mv /home/ubuntu/drupal-8.0.6 /var/www/html/
+
+    - name: Rename drupal version to drupal directory
+      command: mv /var/www/html/drupal-8.0.6 /var/www/html/drupal
+   
+    - name: Delete temp directory after moving files
+      file: path=/home/ubuntu/drupal-8.0.6 state=absent      
+
+    - name: "Create settings.php"
+      command: cp /var/www/html/drupal/sites/default/default.settings.php /var/www/html/drupal/sites/default/settings.php
+
+    - name: "Create services.yml"
+      command: cp /var/www/html/drupal/sites/default/default.services.yml /var/www/html/drupal/sites/default/services.yml
+
+    - name: Make files subdirectory
+      file: path=/var/www/html/drupal/sites/default/files state=directory
+
+    - name: Change file permissions
+#     command: chmod a+w /var/www/html/drupal/sites/default
+      file: path=/var/www/html/drupal/sites/default mode=a+w
+
+    - name: Change file group permissions
+      command: chown -R www-data:www-data /var/www/html/drupal/
+

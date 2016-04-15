@@ -1,0 +1,47 @@
+---
+- name: Create a EC2 instance
+  hosts: localhost
+  gather_facts: False
+  vars:
+    keypair: fda-ansible
+    instance_type: t2.micro
+    security_group: sg-3ae5b242
+    image: ami-fce3c696
+    region: us-east-1
+    subnet: subnet-7378d92a
+  tasks:
+    - name: Provision Web Server Host for Drupal
+      ec2:
+         key_name: "{{ keypair }}"
+         group_id: "{{ security_group }}"
+         region: "{{ region }}"
+         instance_type: t2.micro
+         image: "{{ image }}"
+         wait: true
+         instance_tags:
+            Name: Drupal
+            Env: ansible
+      register: ec2
+
+    - name: Add Web Server instance IP to webserver Group
+      add_host: hostname={{ item.public_ip }} groups=drupal_hosts
+      with_items: ec2.instances
+
+    - name: "Wait for SSH to come up"
+      wait_for: "host={{ item.public_ip }} port=22 delay=15 timeout=120 state=started"
+      with_items: ec2.instances
+- name: Update instances
+  hosts: drupal_hosts
+  gather_facts: True
+  user: ubuntu
+  sudo: yes
+  vars:
+    db_name: drupal
+    db_user: drupal_user
+    db_password: password1
+  roles:
+    - update
+    - apache
+    - php
+    - mysql
+    - drupal

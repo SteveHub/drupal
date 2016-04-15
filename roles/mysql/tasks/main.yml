@@ -1,0 +1,7 @@
+---
+- include: setup.yml
+  name: Setting up MySQL Database
+- include: create_db.yml
+  name: Create Drupal DB instance in MySQL
+- name: Restart Apache
+  service: name=apache2 state=restarted

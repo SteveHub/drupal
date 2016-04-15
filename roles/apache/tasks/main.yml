@@ -1,0 +1,7 @@
+---
+
+- name: Install Apache
+  apt: name=apache2 state=latest
+
+- name: Enable Apache rewrite
+  command: a2enmod rewrite

@@ -1,0 +1,35 @@
+---
+- name: Installing Git
+  apt: name=git state=latest
+
+- name: Installing Drush
+  apt: name=drush state=latest
+
+- name: Install Drupal 8
+  command: drush dl drupal-8
+
+- name: Move files to drupal directory
+  command: mv /home/ubuntu/drupal-8.0.6 /var/www/html/
+
+- name: Rename drupal version to drupal directory
+  command: mv /var/www/html/drupal-8.0.6 /var/www/html/drupal
+
+- name: Delete temp directory after moving files
+  file: path=/home/ubuntu/drupal-8.0.6 state=absent
+
+- name: "Create settings.php"
+  command: cp /var/www/html/drupal/sites/default/default.settings.php /var/www/html/drupal/sites/default/settings.php
+
+- name: "Create services.yml"
+  command: cp /var/www/html/drupal/sites/default/default.services.yml /var/www/html/drupal/sites/default/services.yml
+
+- name: Make files subdirectory
+  file: path=/var/www/html/drupal/sites/default/files state=directory
+
+- name: Change file permissions
+# command: chmod a+w /var/www/html/drupal/sites/default
+  file: path=/var/www/html/drupal/sites/default mode=a+w
+
+- name: Change file group permissions
+  command: chown -R www-data:www-data /var/www/html/drupal/
+
